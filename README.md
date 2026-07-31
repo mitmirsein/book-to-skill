@@ -454,6 +454,23 @@ book-to-skill is free and MIT-licensed, maintained on personal time. If it saves
 
 Every sponsor is listed in [BACKERS.md](BACKERS.md). Thank you for keeping open, privacy-first tooling alive. ✨
 
+## 🙏 Acknowledgements & Customizations
+
+This repository is a customized fork/extension of the original open-source [virgiliojr94/book-to-skill](https://github.com/virgiliojr94/book-to-skill) project by Virgilio (MIT License).
+
+### 🌟 Key Custom Features Added in This Repository:
+- **Theology & Philosophy Domain Lens (`LENS_TYPE=theology`)**:
+  - Replaces generic practical outputs (`cheatsheet`, `glossary`, `patterns`) with academic-grade domain-specific files (`lexicon.md`, `core_arguments.md`, `methodology.md`).
+  - Philological Lexicon support for Hebrew, Greek, Latin, and German original terminology.
+  - Preserves 1st-stage extraction Single Source of Truth (SSOT) without 2nd-stage application pollution.
+- **Subfolder Skill Isolation**:
+  - Collects generated book skills into dedicated `.skills/books/<slug>` subdirectories rather than cluttering the skill root.
+- **Strict Formatting & Quality Verification**:
+  - Enforces concise Korean noun endings (`개조식 종결: 음/함/임`) across all generated summaries.
+  - Enhanced Step 9.4 self-audit checklist for filename deduplication and SSOT purity.
+
+---
+
 ## License
 
 MIT — applies to the converter (code + skill definition) in this repository, **not** to any book or document you process with it.

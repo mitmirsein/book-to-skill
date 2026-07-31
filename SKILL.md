@@ -66,16 +66,13 @@ Four paths available. Route based on what the user asks:
 
 This converter can run from multiple skill systems. When looking for this converter's helper script or writing the generated book skill, prefer these locations in order:
 
-1. GitHub Copilot CLI personal skills: `~/.copilot/skills/`
-2. Cross-agent personal skills (Copilot + Amp): `~/.agents/skills/`
-3. Claude Code personal skills: `~/.claude/skills/`
-4. Project-local Copilot skills: `.github/skills/`
-5. Project-local Claude skills: `.claude/skills/`
-6. Project-local Amp / Copilot skills: `.agents/skills/`
-7. Amp global skills: `~/.config/agents/skills/`
-8. Amp legacy global skills: `~/.config/amp/skills/`
+1. Canonical MS_Dev workspace skills: `~/Desktop/MS_Dev.nosync/.skills/books/` (real directory, Syncthing synced)
+2. Claude Code personal skills: `~/.claude/skills/books/`
+3. Cross-agent personal skills (Copilot + Amp): `~/.agents/skills/books/`
+4. GitHub Copilot CLI personal skills: `~/.copilot/skills/books/`
+5. Project-local Claude / Amp skills: `.claude/skills/books/` or `.agents/skills/books/`
 
-For **generated** book skills, pick a destination that the user's host agent can actually discover (see Step 5). When more than one valid root exists, ask the user once and remember the answer for the session — do not silently default.
+For **generated** book skills, store them inside the real directory `~/Desktop/MS_Dev.nosync/.skills/books/<slug>/` so all book/document skills are real files synced across machines via Syncthing.
 
 ---
 
@@ -121,6 +118,25 @@ Store the answer as `BOOK_TYPE`:
 
 **If `BOOK_TYPE=text`**, inform:
 > "📄 Text mode selected — using the fastest suitable extractor for each file type. Plain text/Markdown/HTML are usually ready in seconds; PDFs use pdftotext when available."
+
+---
+
+## Step 1.7 — Select Analytical Lens
+
+Ask the user which analytical lens to apply to the extracted text.
+
+> "어떤 분석 렌즈(Analytical Lens)를 장착할까요?
+> 1. **General (Default)** — 실용적 프레임워크, 멘탈 모델, 안티패턴 등 행동 지침 위주 추출
+> 2. **Theology & Exegesis** — 주해적 층위, 원어 개념사, 변증법적 긴장, 교의학적 좌표, 설교학적 궤적 등 신학 특화 추출
+> 3. **Philosophy** — 존재론/인식론적 토대, 철학적 변증, 수용사 등 철학 특화 추출"
+
+Store the answer as `LENS_TYPE`:
+- Option 1 → `LENS_TYPE=general`
+- Option 2 → `LENS_TYPE=theology`
+- Option 3 → `LENS_TYPE=philosophy`
+
+If `LENS_TYPE=theology` or `LENS_TYPE=philosophy`, inform the user:
+> "🔍 [LENS_TYPE] 특화 렌즈가 장착되었습니다. 기존의 실용서 중심 추출(cheatsheet 등) 대신 해당 학문에 특화된 구조(lexicon, core_arguments 등)로 스킬을 생성합니다."
 
 ---
 
@@ -304,9 +320,9 @@ Choose the destination skill root (`SKILLS_HOME`). Probe the user's filesystem f
 
 | Host agent | Personal skill root (probe in order) | Project-local root |
 |---|---|---|
-| **GitHub Copilot CLI** | `~/.copilot/skills` → `~/.agents/skills` | `.github/skills` → `.claude/skills` → `.agents/skills` |
-| **Amp** | `~/.agents/skills` → `~/.config/agents/skills` → `~/.config/amp/skills` | `.agents/skills` |
-| **Claude Code** | `~/.claude/skills` | `.claude/skills` |
+| **Claude Code / Antigravity** | `~/Desktop/MS_Dev.nosync/.skills/books` → `~/.claude/skills/books` | `.skills/books` → `.claude/skills/books` |
+| **GitHub Copilot CLI** | `~/Desktop/MS_Dev.nosync/.skills/books` → `~/.copilot/skills/books` | `.github/skills/books` → `.agents/skills/books` |
+| **Amp** | `~/Desktop/MS_Dev.nosync/.skills/books` → `~/.agents/skills/books` | `.agents/skills/books` |
 
 Selection rules:
 1. If **exactly one** of the host's candidate roots exists on disk, use it without asking.
@@ -358,8 +374,9 @@ For EACH chapter/major section identified in Step 3:
 
 Read the corresponding section of the extracted `full_text.txt` (use character offsets or grep for chapter headings).
 
-Create `$SKILLS_HOME/<skill_name>/chapters/ch<NN>-<slug>.md` using the structure below.
+Create `$SKILLS_HOME/<skill_name>/chapters/ch<NN>-<slug>.md` using the appropriate structure below based on `LENS_TYPE`.
 
+**If `LENS_TYPE=general` (Default) or `LENS_TYPE=philosophy` (Fallback to general for now):**
 **Adapt emphasis based on `BOOK_TYPE`:**
 - `technical` → prioritize "Code Examples", "Reference Tables", and "Commands & APIs" sections; preserve exact syntax
 - `text` → prioritize "Frameworks Introduced", "Mental Models", and "Key Takeaways"; skip empty technical sections
@@ -413,9 +430,32 @@ Create `$SKILLS_HOME/<skill_name>/chapters/ch<NN>-<slug>.md` using the structure
 - **<Concept>**: <external concept or standard it connects with>
 ```
 
+**If `LENS_TYPE=theology`:**
+
+*Writing Style Note*: 챕터 요약 작성 시 문장은 반드시 명사형/개조식 종결(음/함/임)을 사용하여 밀도 높고 간결하게 작성할 것(예: "제시합니다" -> "제시함").
+
+```markdown
+# Chapter N: <Full Title>
+
+## 1. 문맥 및 구조 (Context & Literary Structure)
+<해당 챕터/본문의 문학적 구조, 자료비평적 출처(예: P, J, SN), 전체적인 흐름 요약>
+
+## 2. 주해적 핵심 (Exegetical Highlights)
+- **<핵심 구절/주제>**: <저자의 주해적 설명 및 강조점>
+- **<핵심 구절/주제>**: <저자의 주해적 설명 및 강조점>
+
+## 3. 핵심 신학 개념 (Key Theological Concepts)
+- **<개념/용어>**: <저자가 텍스트에서 도출한 고유한 신학적 의미와 의도>
+
+## 4. 고대 근동 배경 및 비교 (ANE Parallels & Background) *(해당 시)*
+<저자가 제시한 고대 근동 문헌이나 배경과의 비교, 유사점 및 이스라엘만의 독특한 차이점>
+```
+
 ---
 
 ## Step 8 — Generate supporting files
+
+**If `LENS_TYPE=general`:**
 
 ### glossary.md
 Create `$SKILLS_HOME/<skill_name>/glossary.md`:
@@ -445,6 +485,23 @@ Avoid: bare term→definition rows (that's the glossary), and prose paragraphs (
 
 - Format mostly as compact tables and decision rules; the content you'd want on a single printed page kept beside you while working.
 - Max 1,200 tokens.
+
+**If `LENS_TYPE=theology`:**
+
+### lexicon.md (Replaces glossary.md)
+Create `$SKILLS_HOME/<skill_name>/lexicon.md`:
+- 책에서 저자가 특별히 강조하거나 독특하게 정의한 원어(히브리어/헬라어 등) 및 신학 전문 용어 사전 (순수하게 책의 내용에 기반).
+- Format: `## <Term>\n- **의미 및 저자의 정의**: ...\n- **관련 챕터**: (Ch N)`
+
+### core_arguments.md (Replaces patterns.md)
+Create `$SKILLS_HOME/<skill_name>/core_arguments.md`:
+- 책 전체를 관통하는 저자의 핵심 주해적, 신학적 논증과 결론 (예: 자료비평적 구분, 특정 주제에 대한 저자의 독자적 해석).
+- Format: `## <논증/주제명>\n- **저자의 핵심 주장**: ...\n- **근거 및 관련 챕터**: ...`
+
+### methodology.md (Replaces cheatsheet.md)
+Create `$SKILLS_HOME/<skill_name>/methodology.md`:
+- 저자가 본문을 해석하기 위해 사용한 해석학적 전제와 방법론 (예: 역사비평, 문학비평, 고대 근동 문헌과의 비교 방식 등).
+- Format: `## <방법론 명칭>\n- **적용 방식**: ...\n- **특징 및 의미**: ...`
 
 ---
 
@@ -503,9 +560,15 @@ the relevant chapter file before answering.
 
 ## Supporting Files
 
+**If `LENS_TYPE=general`:**
 - [glossary.md](glossary.md) — all key terms with definitions
 - [patterns.md](patterns.md) — all techniques and design patterns
 - [cheatsheet.md](cheatsheet.md) — quick reference tables and decision guides
+
+**If `LENS_TYPE=theology`:**
+- [lexicon.md](lexicon.md) — 심층 신학/원어 사전 (Philological Lexicon)
+- [core_arguments.md](core_arguments.md) — 저자의 핵심 주해적/신학적 논증 (Core Arguments)
+- [methodology.md](methodology.md) — 저자의 해석학적 전제와 방법론 (Methodology)
 
 ---
 
@@ -515,6 +578,22 @@ This skill covers the book content only. For hands-on implementation in your cod
 combine with project-specific tools. For topics beyond this book, check related skills
 or ask the agent directly.
 ```
+
+---
+
+## Step 9.4 — Self-Verification & Integrity Checklist
+
+Before running scanner or reporting completion, perform a self-audit against the generated skill files:
+
+1. **Chapter Coverage Audit**: Ensure every chapter extracted from the book has a corresponding `chapters/chXX.md` file and is indexed in `SKILL.md`'s Chapter Index with valid relative links.
+2. **Filename Consistency & Deduplication**: Ensure chapter filenames follow a consistent slug pattern (e.g., `chXX-<slug>.md`, with zero-padded numbers for scripture ranges). If inconsistent duplicate files exist for the same chapter (e.g. `ch01-gen-1-1...` and `ch01-gen01_01...`), merge them and delete the duplicate.
+3. **Styling Consistency**: Ensure all Korean text across `SKILL.md` and all generated files strictly ends with concise noun forms (개조식 종결: 음/함/임) rather than conversational polite verb forms (습니다/합니다).
+
+**If `LENS_TYPE=theology`:**
+4. **Core Arguments Coverage**: Check `core_arguments.md` to verify that **every single chapter (ch00 through chN)** has its corresponding core argument(s) listed. Do NOT skip any chapter sequence.
+5. **Lexicon Synchronization**: Verify that all key original language terms (Hebrew/Greek/Latin) and author-specific terminology from every chapter are captured in `lexicon.md`.
+6. **Methodology Completeness**: Verify that `methodology.md` accurately documents all primary analytical and exegetical methods used by the author.
+7. **No Secondary Processing (SSOT Purity)**: Ensure no 2nd-stage application files (e.g., `dogmatic_loci.md`, `sermon_seeds.md`) are generated. This skill MUST remain a pure 1st-stage extraction of the author's original work without arbitrary theological mapping or homiletic applications.
 
 ---
 
@@ -559,12 +638,21 @@ Then report to the user:
 📚 Book: <Full Title> — <Author>
 📄 Pages: ~<N> | Chapters: <N>
 
-Files generated:
+Files generated (General Lens):
   SKILL.md         — core frameworks + index   (~X tokens)
   chapters/        — <N> chapter summaries     (~X tokens each, ~X total)
   glossary.md      — key terms                 (~X tokens)
   patterns.md      — techniques & patterns     (~X tokens)
   cheatsheet.md    — quick reference           (~X tokens)
+  ─────────────────────────────────────────────────────
+  Total skill size: ~X tokens (loaded on-demand, not all at once)
+
+Files generated (Theology Lens):
+  SKILL.md         — core frameworks + index   (~X tokens)
+  chapters/        — <N> chapter summaries     (~X tokens each, ~X total)
+  lexicon.md       — 심층 신학/원어 사전         (~X tokens)
+  core_arguments.md— 저자의 핵심 논증           (~X tokens)
+  methodology.md   — 저자의 해석학적 방법론       (~X tokens)
   ─────────────────────────────────────────────────────
   Total skill size: ~X tokens (loaded on-demand, not all at once)
 
@@ -641,7 +729,8 @@ Once the files are successfully written and merged, run **Step 9.5**, then proce
 2. **Preserve the author's precision** — "The 5 Whys" ≠ "ask why multiple times"; keep exact naming
 3. **Density over completeness** — a 1,000-token summary beats a 10,000-token excerpt
 4. **Practitioner voice** — write "Use X when Y", not "The book explains X"
-5. **Front-load SKILL.md** — compaction keeps the first 5,000 tokens; most important content comes first
-6. **Chapter files are on-demand** — they don't count against skill budget until loaded
-7. **Never copy raw book text** — always synthesize, summarize, extract signal
-8. **Topic index is critical** — it's how the agent navigates to the right chapter file
+5. **Concise formatting (개조식 종결)** — when writing in Korean, end sentences with concise noun forms (음/함/임) rather than polite conversational forms (습니다/합니다) for maximum readability.
+6. **Front-load SKILL.md** — compaction keeps the first 5,000 tokens; most important content comes first
+7. **Chapter files are on-demand** — they don't count against skill budget until loaded
+8. **Never copy raw book text** — always synthesize, summarize, extract signal
+9. **Topic index is critical** — it's how the agent navigates to the right chapter file
