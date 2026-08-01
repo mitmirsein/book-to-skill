@@ -734,3 +734,4 @@ Once the files are successfully written and merged, run **Step 9.5**, then proce
 7. **Chapter files are on-demand** — they don't count against skill budget until loaded
 8. **Never copy raw book text** — always synthesize, summarize, extract signal
 9. **Topic index is critical** — it's how the agent navigates to the right chapter file
+10. **No AI Control Tokens (Sanitize Output)** — Do not leak internal control tokens (e.g. `<ctrl...>`, `[42]`) or raw OCR/citation artifacts into the generated markdown. Ensure all references are cleanly formatted (e.g. `(Ch 9)`).
