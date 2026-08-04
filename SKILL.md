@@ -135,6 +135,19 @@ Store the answer as `LENS_TYPE`:
 - Option 2 → `LENS_TYPE=theology`
 - Option 3 → `LENS_TYPE=philosophy`
 
+After selecting the lens, declare the tagging contract for this run:
+- Every lens creates canonical ASCII `TagRef` values such as
+  `concept/incarnation`; display labels and multilingual aliases stay in the
+  `labels` array and never become separate tag IDs.
+- Every tag/facet reference records `relevance=primary|supporting|mention` and
+  `basis=explicit|inferred`. Do not promote a passing reference to a search
+  tag; `mention` is excluded from ordinary queries.
+- Theology adds `loci`, exact `scriptures`, and `persons` chapter facets.
+  General and philosophy use only the v1 schema keys and do not invent
+  unregistered taxonomy fields.
+- The book manifest is research-routing data: preserve what the source states
+  and mark editorial classification as `basis=inferred`.
+
 If `LENS_TYPE=theology` or `LENS_TYPE=philosophy`, inform the user:
 > "🔍 [LENS_TYPE] 특화 렌즈가 장착되었습니다. 기존의 실용서 중심 추출(cheatsheet 등) 대신 해당 학문에 특화된 구조(lexicon, core_arguments 등)로 스킬을 생성합니다."
 
@@ -374,6 +387,32 @@ For EACH chapter/major section identified in Step 3:
 
 Read the corresponding section of the extracted `full_text.txt` (use character offsets or grep for chapter headings).
 
+Before the chapter body, write the human-facing projection frontmatter. Keep
+it minimal and make its IDs match the later manifest exactly; the catalog
+builder reads `book-index.json`, not this YAML. `labels`, `relevance`, and
+`basis` belong only in the JSON manifest.
+
+```yaml
+---
+chapter: 4
+chapter-id: ch04
+book-id: <skill_name>
+title: "<Full Title>"
+tags:
+  - concept/<canonical-id>
+loci:
+  - dogmatics/<canonical-locus>
+scriptures:
+  - "John 1:14"
+persons:
+  - <canonical-person-id>
+---
+```
+
+The frontmatter is a projection for Obsidian and human readers. A malformed
+projection must be reported by the self-audit, but must not be used as the
+global catalog's source of truth.
+
 Create `$SKILLS_HOME/<skill_name>/chapters/ch<NN>-<slug>.md` using the appropriate structure below based on `LENS_TYPE`.
 
 **If `LENS_TYPE=general` (Default) or `LENS_TYPE=philosophy` (Fallback to general for now):**
@@ -512,6 +551,11 @@ Compaction truncates from the END — put the most important content FIRST.
 
 Create `$SKILLS_HOME/<skill_name>/SKILL.md`:
 
+Keep the host frontmatter limited to the portable `name` and `description`
+keys shown below. Store book metadata in the body and in the separate
+`book-index.json`; do not add `version`, `status`, `type`, `lens`, or nested
+`metadata` keys to the host frontmatter.
+
 ```markdown
 ---
 name: <skill_name>
@@ -522,6 +566,13 @@ description: "Knowledge base from \"<Full Title>\" by <Author(s)>. Use when appl
 
 # <Full Title>
 **Author**: <Author(s)> | **Pages**: ~<N> | **Chapters**: <N> | **Generated**: <YYYY-MM-DD>
+
+## Book Metadata
+
+- **Authors:** <Author(s)>
+- **Lens:** <general|theology|philosophy>
+- **Tags:** #concept/<canonical-id> #theme/<canonical-id>
+- **Loci:** `dogmatics/<canonical-locus>`
 
 ## How to Use This Skill
 
@@ -579,7 +630,32 @@ combine with project-specific tools. For topics beyond this book, check related 
 or ask the agent directly.
 ```
 
----
+## Step 9.2 — Write the book manifest
+
+Write the complete `$SKILLS_HOME/<skill_name>/book-index.json` using the v1
+contract. It is the machine-readable SSOT for the book and all chapters.
+
+- Root keys are exactly `schema_version`, `book`, and `chapters`; use integer
+  `schema_version: 1`.
+- `book.id` must equal the output directory and `SKILL.md` frontmatter `name`.
+  Include `title`, ordered `authors`, `lens`, `tags`, and the allowed book
+  facets `disciplines`, `loci`, and `traditions`.
+- Each chapter includes `id`, `number`, `slug`, `title`, relative
+  `chapters/*.md` `path`, `tags`, and `loci`/`scriptures`/`persons` facets.
+- Use canonical IDs, multilingual labels, `relevance`, and `basis` exactly as
+  declared in the tagging contract. Do not store a leading `#` in JSON.
+- Sort canonical reference arrays and labels deterministically while
+  preserving author order. Do not add unknown fields.
+
+## Step 9.3 — Validate the manifest and projections
+
+Validate the manifest as untrusted generated data before treating the book as
+complete. Reject unknown fields, duplicate IDs or aliases, invalid canonical
+IDs, absolute or escaping chapter paths, symlinks, missing chapter files,
+schema mismatches, and a mismatch with `SKILL.md` `name`. Audit each chapter's
+projection frontmatter against its manifest IDs, including chapter number,
+book ID, title, tags, loci, scriptures, and persons. YAML parsing is not the
+catalog's SSOT; it is only a consistency check.
 
 ## Step 9.4 — Self-Verification & Integrity Checklist
 
@@ -588,12 +664,14 @@ Before running scanner or reporting completion, perform a self-audit against the
 1. **Chapter Coverage Audit**: Ensure every chapter extracted from the book has a corresponding `chapters/chXX.md` file and is indexed in `SKILL.md`'s Chapter Index with valid relative links.
 2. **Filename Consistency & Deduplication**: Ensure chapter filenames follow a consistent slug pattern (e.g., `chXX-<slug>.md`, with zero-padded numbers for scripture ranges). If inconsistent duplicate files exist for the same chapter (e.g. `ch01-gen-1-1...` and `ch01-gen01_01...`), merge them and delete the duplicate.
 3. **Styling Consistency**: Ensure all Korean text across `SKILL.md` and all generated files strictly ends with concise noun forms (개조식 종결: 음/함/임) rather than conversational polite verb forms (습니다/합니다).
+4. **Manifest Coverage Audit**: Ensure `book-index.json` contains every chapter file exactly once, every referenced path resolves inside the book, and removing a chapter or tag from the current files removes it from the manifest before rebuilding.
+5. **Projection Consistency Audit**: Compare each chapter's simple frontmatter fields with the manifest. Do not treat a stale `#PascalCase` alias as an additional canonical tag.
 
 **If `LENS_TYPE=theology`:**
-4. **Core Arguments Coverage**: Check `core_arguments.md` to verify that **every single chapter (ch00 through chN)** has its corresponding core argument(s) listed. Do NOT skip any chapter sequence.
-5. **Lexicon Synchronization**: Verify that all key original language terms (Hebrew/Greek/Latin) and author-specific terminology from every chapter are captured in `lexicon.md`.
-6. **Methodology Completeness**: Verify that `methodology.md` accurately documents all primary analytical and exegetical methods used by the author.
-7. **No Secondary Processing (SSOT Purity)**: Ensure no 2nd-stage application files (e.g., `dogmatic_loci.md`, `sermon_seeds.md`) are generated. This skill MUST remain a pure 1st-stage extraction of the author's original work without arbitrary theological mapping or homiletic applications.
+6. **Core Arguments Coverage**: Check `core_arguments.md` to verify that **every single chapter (ch00 through chN)** has its corresponding core argument(s) listed. Do NOT skip any chapter sequence.
+7. **Lexicon Synchronization**: Verify that all key original language terms (Hebrew/Greek/Latin) and author-specific terminology from every chapter are captured in `lexicon.md`.
+8. **Methodology Completeness**: Verify that `methodology.md` accurately documents all primary analytical and exegetical methods used by the author.
+9. **No Secondary Processing (SSOT Purity)**: Ensure no 2nd-stage application files (e.g., `dogmatic_loci.md`, `sermon_seeds.md`) are generated. This skill MUST remain a pure 1st-stage extraction of the author's original work without arbitrary theological mapping or homiletic applications.
 
 ---
 
@@ -606,7 +684,32 @@ SKILL_CONVERTER_ROOT="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
 "$PYTHON_BIN" "$SKILL_CONVERTER_ROOT/tools/scan_generated_skill.py" "$SKILLS_HOME/<skill_name>"
 ```
 
-If the scanner exits non-zero, stop and ask a human to review its file/line findings. Do not silently rewrite the generated files, and do not load or publish the skill until the findings are resolved or explicitly accepted.
+The scanner covers `SKILL.md`, all chapter files, both sets of lens supporting
+files (`glossary`/`patterns`/`cheatsheet` and `lexicon`/`core_arguments`/
+`methodology`), and `book-index.json`. It validates the manifest JSON before
+scanning its labels and titles as untrusted text. If it exits non-zero, stop
+and ask a human to review its file/line findings. Do not silently rewrite the
+generated files, and do not load or publish the skill until the findings are
+resolved or explicitly accepted.
+
+---
+
+## Step 9.6 — Rebuild the global catalog
+
+Only after manifest validation, the projection audit, and the generated-skill
+security scan succeed, rebuild the entire catalog from the selected skills
+root. Pass the already resolved `$SKILLS_HOME`; never let the builder infer a
+different default root:
+
+```bash
+"$PYTHON_BIN" "$SKILL_CONVERTER_ROOT/tools/build_book_catalog.py" \
+  --books-root "$SKILLS_HOME"
+```
+
+The builder discovers every direct child containing `SKILL.md`, requires its
+`book-index.json`, validates every manifest, and atomically replaces
+`INDEX.md` and `catalog.json`. It is deterministic and stores no timestamps or
+absolute paths. `--check` performs the same validation without writing.
 
 ---
 
@@ -653,6 +756,8 @@ Files generated (Theology Lens):
   lexicon.md       — 심층 신학/원어 사전         (~X tokens)
   core_arguments.md— 저자의 핵심 논증           (~X tokens)
   methodology.md   — 저자의 해석학적 방법론       (~X tokens)
+  book-index.json   — 검증된 도서/챕터 라우팅 메타데이터
+  catalog status    — 전체 manifest 기준 글로벌 카탈로그 재빌드 상태
   ─────────────────────────────────────────────────────
   Total skill size: ~X tokens (loaded on-demand, not all at once)
 
@@ -677,6 +782,12 @@ Share this skill (Copilot ecosystem, optional):
 ## Update / Fold-in Workflow
 
 When performing an Update/Fold-in operation on an existing skill at `$SKILLS_HOME/<skill_name>/`:
+
+The current file set is the source for the next complete manifest. Never
+append stale chapter or tag entries to an existing reverse index. A fold-in is
+complete only when the whole `book-index.json` is regenerated, validated, and
+the global catalog is rebuilt from every manifest under the selected
+`$SKILLS_HOME`.
 
 ### 1. Read Existing Skill Structure
 Read and parse the existing skill's files:
@@ -711,14 +822,33 @@ For each new or revised chapter:
   - Extract new comparison rules, decision tables, or parameter guides.
   - Integrate them cleanly into the cheatsheet structure.
 
+For a theology skill, apply the same merge discipline to `lexicon.md`,
+`core_arguments.md`, and `methodology.md`. Do not create arbitrary taxonomy
+files outside the v1 manifest schema.
+
 ### 5. Re-generate the Master SKILL.md
 Update the master skill file `$SKILLS_HOME/<skill_name>/SKILL.md`:
 - **Metadata**: Increment the chapter count, update the estimated page count, and add the new source names if appropriate. Update the `Generated` date to the current date.
 - **Core Frameworks**: Fold in the most high-impact mental models or principles from the new content (ensuring the overall file remains under 4,000 tokens).
-- **Chapter Index**: Append the new chapters to the index table, linking to the newly created files.
-- **Topic Index**: Merge the new topics alphabetically. If an existing topic is also covered in the new chapters, append the new chapter links to its line (e.g. `- **Topic** → ch05, ch13`).
+- **Chapter Index**: Reconcile the index with the complete current chapter file set. Removed chapters must disappear rather than remain as stale links.
+- **Topic Index**: Rebuild topics from current chapters. If an existing topic is also covered in a revised chapter, keep one canonical entry and remove tags that no longer have evidence.
 
-### 6. Scan, Cleanup, and Report
+### 6. Rebuild the complete manifest and catalog
+
+After writing the current chapter files, regenerate the entire
+`book-index.json`, including all unchanged chapters. Validate that removed
+chapters and tags are absent, run the manifest/projection audit, and run the
+security scan. Then rebuild the global catalog with:
+
+```bash
+"$PYTHON_BIN" "$SKILL_CONVERTER_ROOT/tools/build_book_catalog.py" \
+  --books-root "$SKILLS_HOME"
+```
+
+If an existing skill has no manifest, stop with `migration required`; do not
+invent an empty manifest or mechanically convert its old Topic Index.
+
+### 7. Scan, Cleanup, and Report
 Once the files are successfully written and merged, run **Step 9.5**, then proceed to **Step 10** to perform cleanup and print a custom update report summarizing the newly added chapters, merged glossary terms, and updated indices.
 
 ---

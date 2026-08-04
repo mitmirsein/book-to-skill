@@ -28,7 +28,8 @@ document into clean text + metadata; the agent turns that into a structured skil
             │  Step 4    purpose → DEPTH (reference | study)                   │
             │  Step 7    per-chapter summaries (budget = BOOK_TYPE × DEPTH)    │
             │  Step 8    glossary · patterns · cheatsheet (decision layer)    │
-            │  Step 9/9.5 SKILL.md core + indexes                             │
+            │  Step 9/9.5 SKILL.md + manifest + security scan                  │
+            │  Step 9.6  rebuild complete cross-book catalog                  │
             └────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
@@ -42,6 +43,10 @@ document into clean text + metadata; the agent turns that into a structured skil
                   glossary.md      terms
                   patterns.md      techniques
                   cheatsheet.md    decision rules / trees / trade-offs / tells
+                  book-index.json  validated machine-readable metadata SSOT
+                <SKILLS_HOME>/
+                  catalog.json     deterministic derived reverse index
+                  INDEX.md         human-readable derived matrix
 ```
 
 ## Design principles
@@ -56,6 +61,10 @@ document into clean text + metadata; the agent turns that into a structured skil
    from the end).
 5. **Graceful degradation** — every format has a stdlib fallback; one bad source is
    skipped, not fatal.
+6. **Manifest-first routing** — generated book metadata is validated JSON; Markdown
+   frontmatter is a projection for people and Obsidian, not the catalog source.
+7. **Deterministic rebuilds** — catalog outputs contain no timestamps or absolute
+   paths and are atomically replaced only after every manifest passes validation.
 
 ## Key components
 
@@ -70,6 +79,9 @@ document into clean text + metadata; the agent turns that into a structured skil
 | `tools/discovery_tax.py` | measures token cost vs context-dump / discovery loop |
 | `tools/validate_skill.py` | checks a generated SKILL.md against host rules (`--lens claude\|copilot\|amp`) |
 | `tools/scan_generated_skill.py` | advisory prompt-injection scan of a generated skill (see Security) |
+| `book_to_skill/catalog.py` | v1 manifest validation, deterministic catalog model, rendering, and queries |
+| `tools/build_book_catalog.py` | strict all-books catalog rebuild (`--check` for read-only validation) |
+| `tools/query_book_catalog.py` | bounded tag/facet/scripture/person query output |
 | `SKILL.md` | the generator spec (Steps 0–10 + fold-in workflow) |
 
 ## Security
@@ -92,8 +104,8 @@ is layered:
   the generator (Step 9.5) that flags instruction-override phrases, model-control
   tags, residual invisible Unicode, authority-widening frontmatter, and
   exfiltration-shaped content across the generated `SKILL.md`, `chapters/*.md`,
-  `glossary.md`, `patterns.md`, and `cheatsheet.md`. Findings name only the rule and
-  file location — never the matched text.
+  both general and theology supporting files, and `book-index.json`. Findings
+  name only the rule and file location — never the matched text.
 - **CI** — CodeQL, Bandit (gate on HIGH), Zizmor, and dependency CVE review on PRs.
 
 ## Extending

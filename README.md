@@ -76,6 +76,27 @@ Running `/book-to-skill your-book.pdf` (or a folder, glob, or list of files) cre
 | `glossary.md` | Every key term, alphabetically sorted with chapter refs | ~1,500 tokens |
 | `patterns.md` | All techniques, algorithms, and design patterns | ~2,000 tokens |
 | `cheatsheet.md` | Decision tables and quick-reference rules | ~1,000 tokens |
+| `book-index.json` | Validated book/chapter tags and facets (machine SSOT) | deterministic |
+
+Theology-lens skills use `lexicon.md`, `core_arguments.md`, and `methodology.md`
+instead of the three general-lens supporting files. When several generated
+books share a `$SKILLS_HOME`, the converter can rebuild `catalog.json` and
+`INDEX.md`, then return only the matching chapter paths:
+
+```bash
+python3 tools/build_book_catalog.py --books-root "$SKILLS_HOME"
+python3 tools/query_book_catalog.py \
+  --catalog "$SKILLS_HOME/catalog.json" \
+  --term "성육신" --scripture "John 1:14" --match all --format json
+```
+
+Canonical IDs (for example `concept/incarnation`) are separate from
+multilingual labels. Queries default to `primary`/`supporting` occurrences;
+use `--include-mentions` when incidental references are wanted.
+
+The catalog utilities are part of the repository-level generator surface. The
+standalone `pip install book-to-skill` path remains the extraction CLI and does
+not register the agent skill or choose a `$SKILLS_HOME` for you.
 
 **Chapter files are loaded on-demand** — they don't count against the skill budget until you ask about that topic.
 
@@ -420,7 +441,12 @@ book-to-skill/
 │       └── parsers/      # Format-specific parsers (pdf, epub, docx, html, rtf, calibre, text)
 ├── tools/
 │   ├── discovery_tax.py  # measures token cost vs context-dump / discovery loop
-│   └── validate_skill.py # checks a generated SKILL.md against host rules (--lens claude|copilot|amp)
+│   ├── validate_skill.py # checks a generated SKILL.md against host rules (--lens claude|copilot|amp)
+│   ├── build_book_catalog.py # validates manifests and atomically rebuilds the global catalog
+│   ├── query_book_catalog.py # returns a bounded, grouped chapter result set
+│   └── scan_generated_skill.py # advisory scan of generated Markdown and book-index.json
+├── book_to_skill/
+│   └── catalog.py         # schema validation, deterministic indexing, and query model
 ├── tests/                # pytest suite (extraction, detection, discovery tax)
 ├── docs/
 │   ├── PERFORMANCE.md    # measured benchmarks, discovery tax, cost

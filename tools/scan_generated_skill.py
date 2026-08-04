@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -14,7 +15,15 @@ from typing import Iterable, Sequence
 MAX_SKILL_FILES = 1_000
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_TOTAL_BYTES = 20 * 1024 * 1024
-SUPPORTING_FILENAMES = ("glossary.md", "patterns.md", "cheatsheet.md")
+SUPPORTING_FILENAMES = (
+    "glossary.md",
+    "patterns.md",
+    "cheatsheet.md",
+    "lexicon.md",
+    "core_arguments.md",
+    "methodology.md",
+)
+MACHINE_READABLE_FILENAMES = ("book-index.json",)
 
 _INVISIBLE_CODEPOINTS = {
     0x200B,  # zero width space
@@ -125,7 +134,7 @@ def _collect_skill_files(skill_dir: Path) -> list[Path]:
         raise ScanError("SKILL.md is missing or is a symbolic link")
 
     candidates = {master}
-    for filename in SUPPORTING_FILENAMES:
+    for filename in SUPPORTING_FILENAMES + MACHINE_READABLE_FILENAMES:
         supporting_file = root / filename
         if supporting_file.is_symlink():
             raise ScanError(f"{filename} must be a real file, not a symbolic link")
@@ -143,7 +152,7 @@ def _collect_skill_files(skill_dir: Path) -> list[Path]:
     files = sorted(candidates, key=lambda path: path.relative_to(root).as_posix().lower())
     if len(files) > MAX_SKILL_FILES:
         raise ScanError(
-            f"generated skill has {len(files):,} Markdown files; maximum is "
+            f"generated skill has {len(files):,} generated files; maximum is "
             f"{MAX_SKILL_FILES:,}"
         )
     return files
@@ -153,7 +162,7 @@ def _read_skill_files(skill_dir: Path, files: Iterable[Path]) -> Iterable[tuple[
     total_bytes = 0
     for path in files:
         if path.is_symlink():
-            raise ScanError("generated skill contains a symbolic-link Markdown file")
+            raise ScanError("generated skill contains a symbolic-link generated file")
         size = path.stat().st_size
         if size > MAX_FILE_BYTES:
             raise ScanError(
@@ -163,15 +172,26 @@ def _read_skill_files(skill_dir: Path, files: Iterable[Path]) -> Iterable[tuple[
         total_bytes += size
         if total_bytes > MAX_TOTAL_BYTES:
             raise ScanError(
-                f"generated skill Markdown exceeds the {MAX_TOTAL_BYTES:,}-byte scan limit"
+                f"generated skill exceeds the {MAX_TOTAL_BYTES:,}-byte scan limit"
             )
         relative = path.relative_to(skill_dir).as_posix()
         try:
-            yield relative, path.read_text(encoding="utf-8-sig")
+            text = path.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             raise ScanError(f"{_terminal_safe(relative)} is not valid UTF-8") from exc
         except OSError as exc:
             raise ScanError(f"could not read {_terminal_safe(relative)}") from exc
+        if path.name in MACHINE_READABLE_FILENAMES:
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ScanError(
+                    f"{_terminal_safe(relative)} is not valid JSON "
+                    f"(line {exc.lineno}, column {exc.colno})"
+                ) from exc
+            if not isinstance(parsed, dict):
+                raise ScanError(f"{_terminal_safe(relative)} must contain a JSON object")
+        yield relative, text
 
 
 def _scan_text(relative_path: str, text: str) -> list[Finding]:
@@ -236,6 +256,26 @@ def _scan_text(relative_path: str, text: str) -> list[Finding]:
     return findings
 
 
+def _scan_json_strings(relative_path: str, parsed: object) -> list[Finding]:
+    """Scan parsed JSON keys and string values, including quoted prefixes."""
+
+    findings: list[Finding] = []
+
+    def visit(value: object) -> None:
+        if isinstance(value, str):
+            findings.extend(_scan_text(relative_path, value))
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                visit(key)
+                visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(parsed)
+    return findings
+
+
 def scan_generated_skill(path: Path) -> list[Finding]:
     requested = path.expanduser()
     skill_dir = requested.parent if requested.name.lower() == "skill.md" else requested
@@ -243,7 +283,20 @@ def scan_generated_skill(path: Path) -> list[Finding]:
     root = skill_dir.resolve(strict=True)
     findings: list[Finding] = []
     for relative_path, text in _read_skill_files(root, files):
-        findings.extend(_scan_text(relative_path, text))
+        if relative_path == "book-index.json":
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError as exc:
+                # _read_skill_files normally performs this check first. Keep
+                # the fail-closed guard local to the scan loop as well for
+                # callers that provide a custom iterable in future.
+                raise ScanError(
+                    f"{_terminal_safe(relative_path)} is not valid JSON "
+                    f"(line {exc.lineno}, column {exc.colno})"
+                ) from exc
+            findings.extend(_scan_json_strings(relative_path, parsed))
+        else:
+            findings.extend(_scan_text(relative_path, text))
     return sorted(findings, key=lambda item: (item.path.lower(), item.line, item.rule_id))
 
 
